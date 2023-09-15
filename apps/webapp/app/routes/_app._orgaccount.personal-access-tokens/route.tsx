@@ -12,6 +12,7 @@ import { customAlphabet } from "nanoid";
 import { Spinner } from "~/components/primitives/Spinner";
 import {
   Table,
+  TableBlankRow,
   TableBody,
   TableCell,
   TableHeader,
@@ -29,6 +30,8 @@ import {
 import { DateTime } from "~/components/primitives/DateTime";
 import { Badge } from "~/components/primitives/Badge";
 import { cn } from "~/utils/cn";
+import { Callout } from "~/components/primitives/Callout";
+import { AccessBadge, ActiveBadge } from "~/components/ActiveBadge";
 
 export const loader = async ({ request }: { request: Request }) => {
   const userid = await requireUserId(request);
@@ -80,12 +83,6 @@ export default function Page() {
 
   return (
     <PageContainer>
-      <PageHeader>
-        <PageTitleRow>
-          <PageTitle title="Personal Access Tokens" />
-        </PageTitleRow>
-        <PageDescription>Manage your Personal Access Tokens.</PageDescription>
-      </PageHeader>
       <PageBody>
         <Table>
           <TableHeader>
@@ -93,79 +90,88 @@ export default function Page() {
               <TableHeaderCell>Token</TableHeaderCell>
               <TableHeaderCell>Last accessed at</TableHeaderCell>
               <TableHeaderCell>Status</TableHeaderCell>
-              <TableHeaderCell>Action</TableHeaderCell>
+              <TableHeaderCell alignment="right">Action</TableHeaderCell>
             </TableRow>
           </TableHeader>
           <TableBody>
+            {tokens.length === 0 && (
+              <TableBlankRow colSpan={4} className="flex w-full items-center justify-center">
+                <Callout variant="info" className="w-fit">
+                  No generated tokens
+                </Callout>
+              </TableBlankRow>
+            )}
             {tokens.length > 0 &&
               tokens.map((token) => {
                 return (
-                  <TableRow>
+                  <TableRow key={token.id}>
                     <TableCell>
                       <ClipboardField
-                        className="w-full max-w-none"
+                        className="max-w-max"
                         secure
                         value={token.token}
-                        variant={"primary/medium"}
+                        variant={"secondary/small"}
                       />
                     </TableCell>
                     <TableCell>
                       {token.lastAccessedAt ? (
                         <DateTime date={token.lastAccessedAt} />
                       ) : (
-                        "Not used yet"
+                        "Never accessed"
                       )}
                     </TableCell>
                     <TableCell>
                       {token.revokedAt === null ? (
-                        <Badge className={cn(badgeClass, "bg-slate-800 text-green-500")}>
-                          <span>Active</span>
-                        </Badge>
+                        <AccessBadge active={true} />
                       ) : (
-                        <Badge className={cn(badgeClass, "bg-rose-600 text-white")}>
-                          <span>Revoked</span>
-                        </Badge>
+                        <AccessBadge active={false} />
                       )}
                     </TableCell>
-                    <TableCell>
-                      <fetcher.Form method="delete" action={`/personal-access-tokens/${token.id}`}>
-                        <Button
-                          variant="danger/large"
-                          fullWidth
-                          disabled={token.revokedAt !== null}
+                    <TableCell alignment="right">
+                      {token.revokedAt === null ? (
+                        <fetcher.Form
+                          method="delete"
+                          action={`/personal-access-tokens/${token.id}`}
                         >
                           {isLoading ? (
-                            <Spinner />
-                          ) : (
-                            <>
-                              <NamedIcon
-                                name="close"
-                                className="mr-1.5 h-4 w-4 text-bright transition group-hover:text-bright"
-                              />
+                            <Button variant="danger/small" LeadingIcon="spinner-white" disabled>
                               Revoke
-                            </>
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="danger/small"
+                              LeadingIcon="trash-can"
+                              leadingIconClassName="text-bright"
+                            >
+                              Revoke
+                            </Button>
                           )}
+                        </fetcher.Form>
+                      ) : (
+                        <Button
+                          variant="danger/small"
+                          LeadingIcon="trash-can"
+                          leadingIconClassName="text-bright"
+                        >
+                          Delete
                         </Button>
-                      </fetcher.Form>
+                      )}
                     </TableCell>
                   </TableRow>
                 );
               })}
-            {tokens.length === 0 && <h1>You have no generatde tokens</h1>}
           </TableBody>
         </Table>
 
-        <div className="my-4 flex w-full justify-end">
-          <Form method="post" className="max-w-md">
-            <FormButtons
-              confirmButton={
-                <Button type="submit" variant={"primary/large"}>
-                  Generate Token
-                </Button>
-              }
-            />
-          </Form>
-        </div>
+        <Form method="post" className="my-4 flex w-full justify-end">
+          <FormButtons
+            confirmButton={
+              <Button type="submit" variant={"primary/medium"}>
+                Generate Token
+              </Button>
+            }
+          />
+        </Form>
       </PageBody>
     </PageContainer>
   );
