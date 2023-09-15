@@ -30,6 +30,29 @@ export function ActiveBadge({ active, className, badgeSize = "normal" }: ActiveB
   }
 }
 
+type AccessBadgeProps = {
+  active: boolean;
+  className?: string;
+  badgeSize?: keyof typeof variant;
+};
+
+export function AccessBadge({ active, className, badgeSize = "normal" }: ActiveBadgeProps) {
+  switch (active) {
+    case true:
+      return (
+        <span className={cn(variant[badgeSize], "bg-slate-800 text-green-500", className)}>
+          Active
+        </span>
+      );
+    case false:
+      return (
+        <span className={cn(variant[badgeSize], "bg-slate-800 text-dimmed", className)}>
+          Revoked
+        </span>
+      );
+  }
+}
+
 export function MissingIntegrationBadge({
   className,
   badgeSize = "normal",
