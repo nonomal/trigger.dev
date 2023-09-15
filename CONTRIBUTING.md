@@ -59,15 +59,18 @@ branch are tagged into a release monthly.
    ```
    pnpm run db:migrate
    ```
-8. Build the app
+8. If you're using VSCode you may need to restart the Typescript server in the webapp to get updated type inference. Open a TypeScript file, then open the Command Palette (View > Command Palette) and run `TypeScript: Restart TS server`.
+9. Build the app
    ```
    pnpm run build --filter webapp
    ```
-9. Run the seed script
-   ```
-   pnpm run db:seed
-   ```
-10. Run the app. See the section below.
+10. Run the seed script
+
+    ```
+    pnpm run db:seed
+    ```
+
+11. Run the app. See the section below.
 
 ## Running
 
