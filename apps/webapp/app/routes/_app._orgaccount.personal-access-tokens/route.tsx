@@ -32,6 +32,7 @@ import { Badge } from "~/components/primitives/Badge";
 import { cn } from "~/utils/cn";
 import { Callout } from "~/components/primitives/Callout";
 import { AccessBadge, ActiveBadge } from "~/components/ActiveBadge";
+import { Paragraph } from "~/components/primitives/Paragraph";
 
 export const loader = async ({ request }: { request: Request }) => {
   const userid = await requireUserId(request);
@@ -78,9 +79,6 @@ export default function Page() {
     fetcher.state === "submitting" ||
     (fetcher.state === "loading" && fetcher.formMethod === "DELETE");
 
-  const badgeClass =
-    "py-1 px-1.5 text-xs font-normal inline-flex items-center justify-center whitespace-nowrap rounded-sm";
-
   return (
     <PageContainer>
       <PageBody>
@@ -96,9 +94,7 @@ export default function Page() {
           <TableBody>
             {tokens.length === 0 && (
               <TableBlankRow colSpan={4} className="flex w-full items-center justify-center">
-                <Callout variant="info" className="w-fit">
-                  No generated tokens
-                </Callout>
+                <Paragraph>No generated tokens</Paragraph>
               </TableBlankRow>
             )}
             {tokens.length > 0 &&
@@ -132,15 +128,14 @@ export default function Page() {
                         <fetcher.Form
                           method="delete"
                           action={`/personal-access-tokens/${token.id}`}
+                          className="flex w-full justify-end"
                         >
                           {isLoading ? (
-                            <Button variant="danger/small" LeadingIcon="spinner-white" disabled>
-                              Revoke
-                            </Button>
+                            <Spinner color="white" />
                           ) : (
                             <Button
-                              variant="danger/small"
-                              LeadingIcon="trash-can"
+                              variant="secondary/small"
+                              LeadingIcon="close"
                               leadingIconClassName="text-bright"
                             >
                               Revoke
