@@ -1,3 +1,4 @@
+import { useProject } from "~/hooks/useProject";
 import { InlineCode } from "./code/InlineCode";
 import {
   ClientTabs,
@@ -7,6 +8,7 @@ import {
 } from "./primitives/ClientTabs";
 import { ClipboardField } from "./primitives/ClipboardField";
 import { Paragraph } from "./primitives/Paragraph";
+import { useAppOrigin } from "~/hooks/useAppOrigin";
 
 export function InitCommand({ appOrigin, apiKey }: { appOrigin: string; apiKey: string }) {
   return (
@@ -53,13 +55,25 @@ export function RunDevCommand({ extra }: { extra?: string }) {
         <ClientTabsTrigger value={"yarn"}>yarn</ClientTabsTrigger>
       </ClientTabsList>
       <ClientTabsContent value={"npm"}>
-        <ClipboardField variant="primary/medium" className="mb-4" value={`npm run dev${extra}`} />
+        <ClipboardField
+          variant="primary/medium"
+          className="mb-4"
+          value={`npm run dev${extra ? ` ${extra}` : ""}`}
+        />
       </ClientTabsContent>
       <ClientTabsContent value={"pnpm"}>
-        <ClipboardField variant="primary/medium" className="mb-4" value={`pnpm run dev${extra}`} />
+        <ClipboardField
+          variant="primary/medium"
+          className="mb-4"
+          value={`pnpm run dev${extra ? ` ${extra}` : ""}`}
+        />
       </ClientTabsContent>
       <ClientTabsContent value={"yarn"}>
-        <ClipboardField variant="primary/medium" className="mb-4" value={`yarn run dev${extra}`} />
+        <ClipboardField
+          variant="primary/medium"
+          className="mb-4"
+          value={`yarn run dev${extra ? ` ${extra}` : ""}`}
+        />
       </ClientTabsContent>
     </ClientTabs>
   );
@@ -77,21 +91,21 @@ export function TriggerDevCommand({ extra }: { extra?: string }) {
         <ClipboardField
           variant="primary/medium"
           className="mb-4"
-          value={`npx @trigger.dev/cli@latest dev${extra}`}
+          value={`npx @trigger.dev/cli@latest dev${extra ? ` ${extra}` : ""}`}
         />
       </ClientTabsContent>
       <ClientTabsContent value={"pnpm"}>
         <ClipboardField
           variant="primary/medium"
           className="mb-4"
-          value={`pnpm dlx @trigger.dev/cli@latest dev${extra}`}
+          value={`pnpm dlx @trigger.dev/cli@latest dev${extra ? ` ${extra}` : ""}`}
         />
       </ClientTabsContent>
       <ClientTabsContent value={"yarn"}>
         <ClipboardField
           variant="primary/medium"
           className="mb-4"
-          value={`yarn dlx @trigger.dev/cli@latest dev${extra}`}
+          value={`yarn dlx @trigger.dev/cli@latest dev${extra ? ` ${extra}` : ""}`}
         />
       </ClientTabsContent>
     </ClientTabs>
@@ -114,5 +128,147 @@ export function TriggerDevStep({ extra }: { extra?: string }) {
         you're developing.
       </Paragraph>
     </>
+  );
+}
+
+// Trigger.dev version 3 setup commands
+const v3PackageTag = "latest";
+
+function getApiUrlArg() {
+  const appOrigin = useAppOrigin();
+
+  let apiUrl: string | undefined = undefined;
+
+  switch (appOrigin) {
+    case "https://cloud.trigger.dev":
+      // don't display the arg, use the CLI default
+      break;
+    case "https://test-cloud.trigger.dev":
+      apiUrl = "https://test-api.trigger.dev";
+      break;
+    case "https://internal.trigger.dev":
+      apiUrl = "https://internal-api.trigger.dev";
+      break;
+    default:
+      apiUrl = appOrigin;
+      break;
+  }
+
+  return apiUrl ? `-a ${apiUrl}` : undefined;
+}
+
+export function InitCommandV3() {
+  const project = useProject();
+  const projectRef = project.ref;
+
+  const apiUrlArg = getApiUrlArg();
+
+  const initCommandParts = [`trigger.dev@${v3PackageTag}`, "init", `-p ${projectRef}`, apiUrlArg];
+  const initCommand = initCommandParts.filter(Boolean).join(" ");
+
+  return (
+    <ClientTabs defaultValue="npm">
+      <ClientTabsList>
+        <ClientTabsTrigger value={"npm"}>npm</ClientTabsTrigger>
+        <ClientTabsTrigger value={"pnpm"}>pnpm</ClientTabsTrigger>
+        <ClientTabsTrigger value={"yarn"}>yarn</ClientTabsTrigger>
+      </ClientTabsList>
+      <ClientTabsContent value={"npm"}>
+        <ClipboardField
+          variant="primary/medium"
+          iconButton
+          className="mb-4"
+          value={`npx ${initCommand}`}
+        />
+      </ClientTabsContent>
+      <ClientTabsContent value={"pnpm"}>
+        <ClipboardField
+          variant="primary/medium"
+          iconButton
+          className="mb-4"
+          value={`pnpm dlx ${initCommand}`}
+        />
+      </ClientTabsContent>
+      <ClientTabsContent value={"yarn"}>
+        <ClipboardField
+          variant="primary/medium"
+          iconButton
+          className="mb-4"
+          value={`yarn dlx ${initCommand}`}
+        />
+      </ClientTabsContent>
+    </ClientTabs>
+  );
+}
+
+export function TriggerDevStepV3() {
+  return (
+    <ClientTabs defaultValue="npm">
+      <ClientTabsList>
+        <ClientTabsTrigger value={"npm"}>npm</ClientTabsTrigger>
+        <ClientTabsTrigger value={"pnpm"}>pnpm</ClientTabsTrigger>
+        <ClientTabsTrigger value={"yarn"}>yarn</ClientTabsTrigger>
+      </ClientTabsList>
+      <ClientTabsContent value={"npm"}>
+        <ClipboardField
+          variant="primary/medium"
+          iconButton
+          className="mb-4"
+          value={`npx trigger.dev@${v3PackageTag} dev`}
+        />
+      </ClientTabsContent>
+      <ClientTabsContent value={"pnpm"}>
+        <ClipboardField
+          variant="primary/medium"
+          iconButton
+          className="mb-4"
+          value={`pnpm dlx trigger.dev@${v3PackageTag} dev`}
+        />
+      </ClientTabsContent>
+      <ClientTabsContent value={"yarn"}>
+        <ClipboardField
+          variant="primary/medium"
+          iconButton
+          className="mb-4"
+          value={`yarn dlx trigger.dev@${v3PackageTag} dev`}
+        />
+      </ClientTabsContent>
+    </ClientTabs>
+  );
+}
+
+export function TriggerLoginStepV3() {
+  return (
+    <ClientTabs defaultValue="npm">
+      <ClientTabsList>
+        <ClientTabsTrigger value={"npm"}>npm</ClientTabsTrigger>
+        <ClientTabsTrigger value={"pnpm"}>pnpm</ClientTabsTrigger>
+        <ClientTabsTrigger value={"yarn"}>yarn</ClientTabsTrigger>
+      </ClientTabsList>
+      <ClientTabsContent value={"npm"}>
+        <ClipboardField
+          variant="primary/medium"
+          iconButton
+          className="mb-4"
+          value={`npx trigger.dev@${v3PackageTag} login`}
+        />
+      </ClientTabsContent>
+      <ClientTabsContent value={"pnpm"}>
+        <ClipboardField
+          variant="primary/medium"
+          iconButton
+          className="mb-4"
+          value={`pnpm dlx trigger.dev@${v3PackageTag} login`}
+        />
+      </ClientTabsContent>
+      <ClientTabsContent value={"yarn"}>
+        <ClipboardField
+          variant="primary/medium"
+          iconButton
+          className="mb-4"
+          value={`yarn dlx trigger.dev@${v3PackageTag} login`}
+        />
+      </ClientTabsContent>
+    </ClientTabs>
   );
 }
