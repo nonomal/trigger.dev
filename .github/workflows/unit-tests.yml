@@ -1,0 +1,46 @@
+name: "🧪 Unit Tests"
+
+on:
+  workflow_call:
+
+jobs:
+  unitTests:
+    name: "🧪 Unit Tests"
+    runs-on: ubuntu-latest
+    steps:
+      - name: ⬇️ Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: ⎔ Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 8.15.5
+
+      - name: ⎔ Setup node
+        uses: buildjet/setup-node@v4
+        with:
+          node-version: 20.11.1
+          cache: "pnpm"
+
+      - name: 📥 Download deps
+        run: pnpm install --frozen-lockfile
+
+      - name: 📀 Generate Prisma Client
+        run: pnpm run generate
+
+      - name: 🧪 Run Webapp Unit Tests
+        run: pnpm run test --filter webapp
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+          DIRECT_URL: postgresql://postgres:postgres@localhost:5432/postgres
+          SESSION_SECRET: "secret"
+          MAGIC_LINK_SECRET: "secret"
+          ENCRYPTION_KEY: "secret"
+      
+      - name: 🧪 Run Package Unit Tests
+        run: pnpm run test --filter "@trigger.dev/*"
+      
+      - name: 🧪 Run Internal Unit Tests
+        run: pnpm run test --filter "@internal/*"

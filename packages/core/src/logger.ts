@@ -8,6 +8,10 @@
  * - `"info"`: Info, Warnings, Errors and essential messages.
  * - `"debug"`: Everything.
  */
+import { env } from "node:process";
+import { Buffer } from "node:buffer";
+import { trace, context } from "@opentelemetry/api";
+
 export type LogLevel = "log" | "error" | "warn" | "info" | "debug";
 
 const logLevels: Array<LogLevel> = ["log", "error", "warn", "info", "debug"];
@@ -17,17 +21,30 @@ export class Logger {
   readonly #level: number;
   #filteredKeys: string[] = [];
   #jsonReplacer?: (key: string, value: unknown) => unknown;
+  #additionalFields: () => Record<string, unknown>;
 
   constructor(
     name: string,
     level: LogLevel = "info",
     filteredKeys: string[] = [],
-    jsonReplacer?: (key: string, value: unknown) => unknown
+    jsonReplacer?: (key: string, value: unknown) => unknown,
+    additionalFields?: () => Record<string, unknown>
   ) {
     this.#name = name;
-    this.#level = logLevels.indexOf((process.env.TRIGGER_LOG_LEVEL ?? level) as LogLevel);
+    this.#level = logLevels.indexOf((env.TRIGGER_LOG_LEVEL ?? level) as LogLevel);
     this.#filteredKeys = filteredKeys;
-    this.#jsonReplacer = jsonReplacer;
+    this.#jsonReplacer = createReplacer(jsonReplacer);
+    this.#additionalFields = additionalFields ?? (() => ({}));
+  }
+
+  child(fields: Record<string, unknown>) {
+    return new Logger(
+      this.#name,
+      logLevels[this.#level],
+      this.#filteredKeys,
+      this.#jsonReplacer,
+      () => ({ ...this.#additionalFields(), ...fields })
+    );
   }
 
   // Return a new Logger instance with the same name and a new log level
@@ -43,47 +60,105 @@ export class Logger {
   log(message: string, ...args: Array<Record<string, unknown> | undefined>) {
     if (this.#level < 0) return;
 
-    this.#structuredLog(console.log, message, ...args);
+    this.#structuredLog(console.log, message, "log", ...args);
   }
 
   error(message: string, ...args: Array<Record<string, unknown> | undefined>) {
     if (this.#level < 1) return;
 
-    this.#structuredLog(console.error, message, ...args);
+    this.#structuredLog(console.error, message, "error", ...args);
   }
 
   warn(message: string, ...args: Array<Record<string, unknown> | undefined>) {
     if (this.#level < 2) return;
 
-    this.#structuredLog(console.warn, message, ...args);
+    this.#structuredLog(console.warn, message, "warn", ...args);
   }
 
   info(message: string, ...args: Array<Record<string, unknown> | undefined>) {
     if (this.#level < 3) return;
 
-    this.#structuredLog(console.info, message, ...args);
+    this.#structuredLog(console.info, message, "info", ...args);
   }
 
   debug(message: string, ...args: Array<Record<string, unknown> | undefined>) {
     if (this.#level < 4) return;
 
-    this.#structuredLog(console.debug, message, ...args);
+    this.#structuredLog(console.debug, message, "debug", ...args);
   }
 
   #structuredLog(
     loggerFunction: (message: string, ...args: any[]) => void,
     message: string,
+    level: string,
     ...args: Array<Record<string, unknown> | undefined>
   ) {
+    // Get the current context from trace if it exists
+    const currentSpan = trace.getSpan(context.active());
+
+    const structuredError = extractStructuredErrorFromArgs(...args);
+    const structuredMessage = extractStructuredMessageFromArgs(...args);
+
     const structuredLog = {
       ...structureArgs(safeJsonClone(args) as Record<string, unknown>[], this.#filteredKeys),
+      ...this.#additionalFields(),
+      ...(structuredError ? { error: structuredError } : {}),
       timestamp: new Date(),
       name: this.#name,
       message,
+      ...(structuredMessage ? { $message: structuredMessage } : {}),
+      level,
+      traceId:
+        currentSpan && currentSpan.isRecording() ? currentSpan?.spanContext().traceId : undefined,
+      parentSpanId:
+        currentSpan && currentSpan.isRecording() ? currentSpan?.spanContext().spanId : undefined,
     };
 
-    loggerFunction(JSON.stringify(structuredLog, createReplacer(this.#jsonReplacer)));
+    // If the span is not recording, and it's a debug log, mark it so we can filter it out when we forward it
+    if (currentSpan && !currentSpan.isRecording() && level === "debug") {
+      structuredLog.skipForwarding = true;
+    }
+
+    loggerFunction(JSON.stringify(structuredLog, this.#jsonReplacer));
   }
+}
+
+// Detect if args is an error object
+// Or if args contains an error object at the "error" key
+// In both cases, return the error object as a structured error
+function extractStructuredErrorFromArgs(...args: Array<Record<string, unknown> | undefined>) {
+  const error = args.find((arg) => arg instanceof Error) as Error | undefined;
+
+  if (error) {
+    return {
+      message: error.message,
+      stack: error.stack,
+      name: error.name,
+    };
+  }
+
+  const structuredError = args.find((arg) => arg?.error);
+
+  if (structuredError && structuredError.error instanceof Error) {
+    return {
+      message: structuredError.error.message,
+      stack: structuredError.error.stack,
+      name: structuredError.error.name,
+    };
+  }
+
+  return;
+}
+
+function extractStructuredMessageFromArgs(...args: Array<Record<string, unknown> | undefined>) {
+  // Check to see if there is a `message` key in the args, and if so, return it
+  const structuredMessage = args.find((arg) => arg?.message);
+
+  if (structuredMessage) {
+    return structuredMessage.message;
+  }
+
+  return;
 }
 
 function createReplacer(replacer?: (key: string, value: unknown) => unknown) {
@@ -113,34 +188,16 @@ function safeJsonClone(obj: unknown) {
   try {
     return JSON.parse(JSON.stringify(obj, bigIntReplacer));
   } catch (e) {
-    return obj;
+    return;
   }
-}
-
-function formattedDateTime() {
-  const date = new Date();
-
-  const hours = date.getHours();
-  const minutes = date.getMinutes();
-  const seconds = date.getSeconds();
-  const milliseconds = date.getMilliseconds();
-
-  // Make sure the time is always 2 digits
-  const formattedHours = hours < 10 ? `0${hours}` : hours;
-  const formattedMinutes = minutes < 10 ? `0${minutes}` : minutes;
-  const formattedSeconds = seconds < 10 ? `0${seconds}` : seconds;
-  const formattedMilliseconds =
-    milliseconds < 10
-      ? `00${milliseconds}`
-      : milliseconds < 100
-      ? `0${milliseconds}`
-      : milliseconds;
-
-  return `${formattedHours}:${formattedMinutes}:${formattedSeconds}.${formattedMilliseconds}`;
 }
 
 // If args is has a single item that is an object, return that object
 function structureArgs(args: Array<Record<string, unknown>>, filteredKeys: string[] = []) {
+  if (!args) {
+    return;
+  }
+
   if (args.length === 0) {
     return;
   }
@@ -181,11 +238,11 @@ function filterKeys(obj: unknown, keys: string[]): any {
 }
 
 function prettyPrintBytes(value: unknown): string {
-  if (process.env.NODE_ENV === "production") {
+  if (env.NODE_ENV === "production") {
     return "skipped size";
   }
 
-  const sizeInBytes = Buffer.byteLength(JSON.stringify(value), "utf8");
+  const sizeInBytes = getSizeInBytes(value);
 
   if (sizeInBytes < 1024) {
     return `${sizeInBytes} bytes`;
@@ -200,4 +257,10 @@ function prettyPrintBytes(value: unknown): string {
   }
 
   return `${(sizeInBytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+}
+
+function getSizeInBytes(value: unknown) {
+  const jsonString = JSON.stringify(value);
+
+  return Buffer.byteLength(jsonString, "utf8");
 }
